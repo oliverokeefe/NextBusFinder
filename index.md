@@ -1,18 +1,15 @@
-<!DOCTYPE html>
-
-<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<html>
 
 	<head>
 
-		<meta charset="utf-8" />
-		<title>Page Title</title>
+		<title>Case Study</title>
 
 	</head>
 
 	<body>
 
-		<h1>This is a Heading</h1>
-		<p>This is a paragraph.</p>
+		<h1>Repo for Target Case Study</h1>
+		<a href="https://oliverokeefe.github.io/targetCaseStudy/Page1.html">The Page</a>
 
 	</body>
 
