@@ -1,0 +1,35 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+    <head>
+
+        <meta charset="utf-8" />
+        <title>Next Bus Finder</title>
+        <link rel="stylesheet" href="app.css" type="text/css" />
+        <script src="app.js"></script>
+
+    </head>
+    <body>
+
+        <h1>Next Bus Calculator</h1>
+
+        <div id="InputArea">
+            <label for="Route">Route</label><br>
+            <input id="Route" type="text" name="Route" disabled /> <span id="RouteValidation" class="validation"></span> <br>
+            <label for="Direction">Direction</label><br>
+            <input id="Direction" type="text" name="Direction" disabled /> <span id="DirectionValidation" class="validation"></span> <br>
+            <label for="Stop">Stop</label><br>
+            <input id="Stop" type="text" name="Stop" disabled /> <span id="StopValidation" class="validation"></span> <br>
+            <br>
+            <button id="EnterBtn" type="button" disabled>Find Next Bus</button> <span id="EnterValidation" class="validation"></span>
+        </div><br>
+
+        <div id="OutputMain"></div><br>
+
+        <div id="OutputSecond"></div><br>
+
+        <div id="ResponseURL"></div><br>
+
+        <div id="ResponseContent"></div>
+
+    </body>
+</html>
