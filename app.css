@@ -1,0 +1,13 @@
+﻿body {
+    font-family: 'Segoe UI', sans-serif;
+}
+
+
+.validation {
+    color: lightcoral;
+    font-weight:bold;
+}
+
+.invalidInput {
+    border-color:lightcoral;
+}
