@@ -9,7 +9,7 @@
 	<body>
 
 		<h1>Repo for Target Case Study</h1>
-		<a href="https://oliverokeefe.github.io/targetCaseStudy/Page1.html">The Page</a>
+		<a href="https://oliverokeefe.github.io/targetCaseStudy/index.html">The Page</a>
 
 	</body>
 
