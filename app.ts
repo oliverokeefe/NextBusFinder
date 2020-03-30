@@ -139,6 +139,11 @@ const _getStops: string = "/Stops/"; //{ROUTE}/{DIRECTION}
 const _getTimepointDepartures: string = "/"; //{ROUTE}/{DIRECTION}/{STOP}
 
 /**
+ * The message that displays in the alert when a GET request fails.
+ */
+const _httpRequestFailMsg: string = "Failed to get information from Metro Transit. Refresh page and try again. If that fails try again later.";
+
+/**
  * Validates the input to the 'control' control and sets the code if valid. If the input is invalid this will mark the control as invalid and display
  * an error message.
  * @param control The control to validate and set.
@@ -218,12 +223,16 @@ function findNextBus() {
         enableInputFields();
     }
     disableInputFields();
-    setLoadingMessage("loading...");
+    setLoadingMessage("Loading...");
     populateTimepointDeparture(callback);
 
     return;
 }
 
+/**
+ * If a message is passed, it is displayed. Otherwise any message that is set is removed.
+ * @param message
+ */
 function setLoadingMessage(message?: string) {
     if (message) {
         _data.Enter.validationElement.classList.add("placeholderText");
@@ -232,10 +241,12 @@ function setLoadingMessage(message?: string) {
         _data.Enter.validationElement.innerHTML = "";
         _data.Enter.validationElement.classList.remove("placeholderText");
     }
+
+    return;
 }
 
 /**
- * Retrieves the code corresponding to the route name. "" if the route does not exist.
+ * Retrieves the code corresponding to the route name in _routes. "" if the route does not exist.
  * @returns The code for the route, or "" of no route exists
  */
 function getRouteCode(): string {
@@ -292,7 +303,7 @@ function getDirectionCode(): string {
 }
 
 /**
- * Retrieves the code corresponding to the stop name. "" if the stop does not exist.
+ * Retrieves the code corresponding to the stop name in _stops. "" if the stop does not exist.
  * @returns The code for the stop, or "" of no stop exists
  */
 function getStopCode(): string {
@@ -313,60 +324,38 @@ function getStopCode(): string {
     return stopCode;
 }
 
-function getRouteName(): string {
-    let routeName: string = "";
-    _routes.forEach(function (route) {
-        if (_data.Route.code === route.Route) {
-            routeName = route.Description;
-        }
-    });
-
-    return routeName.toUpperCase();
-}
-
-function getDirectionName(): string {
-    let directionName: string = "";
-    _directions.forEach(function (direction) {
-        if (_data.Direction.code === direction.Value) {
-            directionName = direction.Text;
-        }
-    });
-
-    return directionName;
-}
-
-function getStopName(): string {
-    let stopName: string = "";
-    _stops.forEach(function (stp) {
-        if (_data.Stop.code === stp.Value) {
-            stopName = stp.Text;
-        }
-    });
-
-    return stopName.toUpperCase();
-}
-
+/**
+ * Displays when the next bus will arrive, or a message saying there are no more busses today.
+ */
 function displayResponse() {
+
     let outputMain: string = "";
-    //Should check if Actual and DepartureText have values.
     if (_timepointDepartures && _timepointDepartures.length > 0) {
+        if (_timepointDepartures[0].DepartureText && _timepointDepartures[0].Actual != null && typeof(_timepointDepartures[0].Actual) != "undefined") {
+            let timeUntilArrival: string | number = "";
+            let busTimeRaw: string = _timepointDepartures[0].DepartureText;
+            if (_timepointDepartures[0].Actual) {
+                if (busTimeRaw === "Due") {
+                    timeUntilArrival = "";
+                } else if (busTimeRaw.length >= 4) {
+                    timeUntilArrival = busTimeRaw.substring(0, busTimeRaw.length - 4);
+                } else {
+                    timeUntilArrival = "NAN";
+                }
 
-        let timeUntilArrival: string | number = "";
-        let busTimeRaw: string = _timepointDepartures[0].DepartureText;
-        if (_timepointDepartures[0].Actual) {
-            timeUntilArrival = busTimeRaw.substring(0, busTimeRaw.length - 4);
-            if (timeUntilArrival === "") {
-                timeUntilArrival = "0";
+                if (timeUntilArrival === "") {
+                    timeUntilArrival = "0";
+                }
+            } else {
+                let today: Date = new Date();
+                let busTimeSplit: string[] = busTimeRaw.split(":");
+                let busDateTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), parseInt(busTimeSplit[0]), parseInt(busTimeSplit[1]));
+                timeUntilArrival = new Date(busDateTime.getTime() - today.getTime()).getMinutes();
             }
+            outputMain = timeUntilArrival + " minutes";
         } else {
-            let today: Date = new Date();
-            let busTimeSplit: string[] = busTimeRaw.split(":");
-            let busDateTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), parseInt(busTimeSplit[0]), parseInt(busTimeSplit[1]));
-            timeUntilArrival = new Date(busDateTime.getTime() - today.getTime()).getMinutes();
+            outputMain = _httpRequestFailMsg;
         }
-
-        outputMain = timeUntilArrival + " minutes";
-
     } else {
         outputMain = "The last bus has left for the day";
     }
@@ -376,41 +365,32 @@ function displayResponse() {
     return;
 }
 
-function clearList(list: InputControlOptions) {
-
-    switch (list) {
-        case "Route":
-            _directions = [];
-            _stops = [];
-            break;
-        case "Direction":
-            _stops = [];
-            break;
-        case "Stop":
-            break;
-        default:
-            break;
-    }
-}
-
 /**
- * Sends the Request using Route, Direction, and Stop
+ * Populates _timepointDepartures with the timepoint Departures using the Metro Transit API and the
+ * valid route, direction, and stop that have been entered. If any of the entered values are invalid
+ * than this clears _timepointDepartures and quits.
+ * @param callback The callback to run after the GET request has successfully finished.
  */
 function populateTimepointDeparture(callback?: Function) {
 
     if (_data.Route.code === "" || _data.Direction.code === "" || _data.Stop.code === "") {
+        _timepointDepartures = [];
         return;
     }
 
     let xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function () {
-        if (this.readyState === XMLHttpRequest.DONE && (
-            this.status === 0 || (this.status >= 200 && this.status < 300))) {
+        if (this.readyState === XMLHttpRequest.DONE) {
+            if (this.status === 0 || (this.status >= 200 && this.status < 300)) {
 
-            _timepointDepartures = JSON.parse(this.response);
+                _timepointDepartures = JSON.parse(this.response);
 
-            if (callback) {
-                callback();
+                if (callback) {
+                    callback();
+                }
+
+            } else {
+                alert(_httpRequestFailMsg);
             }
         }
     };
@@ -422,38 +402,39 @@ function populateTimepointDeparture(callback?: Function) {
     return;
 }
 
-function testtest() {
-    _routeListElement.innerHTML = "";
-}
-
 /**
- * Populate a table with Route names and codes
+ * Populates _routes with all routes returned by the Metro Transit API.
+ * @param callback The callback to run after the GET request has successfully finished.
  */
 function populateRoutes(callback?: Function) {
 
     let xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function () {
-        if (this.readyState === XMLHttpRequest.DONE && (
-            this.status === 0 || (this.status >= 200 && this.status < 300))) {
+        if (this.readyState === XMLHttpRequest.DONE) {
+            if (this.status === 0 || (this.status >= 200 && this.status < 300)) {
 
-            _routes = JSON.parse(this.response);
+                _routes = JSON.parse(this.response);
 
-            _routeListElement.classList.add("hide");
-            _routeListElement.innerHTML = "";
-            //let routeHeader: HTMLHeadingElement = document.createElement("h2");
-            //routeHeader.innerText = "Routes:";
-            //_routeListElement.appendChild(routeHeader);
-            _routes.forEach(function (route) {
-                let routeName: HTMLDivElement = document.createElement("div");
-                routeName.innerHTML = route.Description;
-                _routeListElement.appendChild(routeName);
-                route.Description = route.Description.toLowerCase();
-            });
-            _routeListElement.classList.remove("hide");
+                if (_routes.length > 0) {
+                    _routeListElement.classList.add("hide");
+                    _routeListElement.innerHTML = "";
+                    _routes.forEach(function (route) {
+                        let routeName: HTMLDivElement = document.createElement("div");
+                        routeName.innerHTML = route.Description;
+                        _routeListElement.appendChild(routeName);
+                        route.Description = route.Description.toLowerCase();
+                    });
+                    _routeListElement.classList.remove("hide");
+                } else {
+                    alert(_httpRequestFailMsg);
+                }
 
+                if (callback) {
+                    callback();
+                }
 
-            if (callback) {
-                callback();
+            } else {
+                alert(_httpRequestFailMsg);
             }
         }
     };
@@ -465,6 +446,11 @@ function populateRoutes(callback?: Function) {
     return;
 }
 
+/**
+ * Populates _directions using the Metro Transit API and the valid route that has been entered.
+ * If there is no valid route entered, this will clear _directions and quit.
+ * @param callback The callback to run after the GET request has successfully finished.
+ */
 function populateDirections(callback?: Function) {
 
     if (_data.Route.code === "") {
@@ -474,17 +460,25 @@ function populateDirections(callback?: Function) {
 
     let xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function () {
-        if (this.readyState === XMLHttpRequest.DONE && (
-            this.status === 0 || (this.status >= 200 && this.status < 300))) {
+        if (this.readyState === XMLHttpRequest.DONE) {
+            if (this.status === 0 || (this.status >= 200 && this.status < 300)) {
 
-            _directions = JSON.parse(this.response);
+                _directions = JSON.parse(this.response);
 
-            if (_data.Direction.element.value != "") {
-                validateAndSetCode("Direction", "Direction Not Found on Route");
-            }
+                if (_directions.length > 0) {
+                    if (_data.Direction.element.value != "") {
+                        validateAndSetCode("Direction", "Direction Not Found on Route");
+                    }
+                } else {
+                    alert(_httpRequestFailMsg);
+                }
 
-            if (callback) {
-                callback();
+                if (callback) {
+                    callback();
+                }
+
+            } else {
+                alert(_httpRequestFailMsg);
             }
         }
     };
@@ -497,6 +491,11 @@ function populateDirections(callback?: Function) {
 
 }
 
+/**
+ * Populates _stops using the Metro Transit API and the valid entered route, and direction. If either
+ * the route or direction are not valid, then this clears _stops as well as the displayed list and quits.
+ * @param callback The callback to run after the GET request has successfully finished.
+ */
 function populateStops(callback?: Function) {
 
     if (_data.Route.code === "" || _data.Direction.code === "") {
@@ -508,28 +507,36 @@ function populateStops(callback?: Function) {
 
     let xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function () {
-        if (this.readyState === XMLHttpRequest.DONE && (
-            this.status === 0 || (this.status >= 200 && this.status < 300))) {
+        if (this.readyState === XMLHttpRequest.DONE) {
+            if (this.status === 0 || (this.status >= 200 && this.status < 300)) {
 
-            _stops = JSON.parse(this.response);
+                _stops = JSON.parse(this.response);
 
-            _stopListElement.classList.add("hide");
-            _stopListElement.classList.remove("placeholderText");
-            _stopListElement.innerHTML = "";
-            _stops.forEach(function (stp) {
-                let stopName = document.createElement("div");
-                stopName.innerHTML = stp.Text;
-                _stopListElement.appendChild(stopName);
-                stp.Text = stp.Text.toLowerCase();
-            });
-            _stopListElement.classList.remove("hide");
+                if (_stops.length > 0) {
+                    _stopListElement.classList.add("hide");
+                    _stopListElement.classList.remove("placeholderText");
+                    _stopListElement.innerHTML = "";
+                    _stops.forEach(function (stp) {
+                        let stopName = document.createElement("div");
+                        stopName.innerHTML = stp.Text;
+                        _stopListElement.appendChild(stopName);
+                        stp.Text = stp.Text.toLowerCase();
+                    });
+                    _stopListElement.classList.remove("hide");
 
-            if (_data.Stop.element.value != "") {
-                validateAndSetCode("Stop", "Stop Not Found on Route in Direction");
-            }
+                    if (_data.Stop.element.value != "") {
+                        validateAndSetCode("Stop", "Stop Not Found on Route in Direction");
+                    }
+                } else {
+                    alert(_httpRequestFailMsg);
+                }
 
-            if (callback) {
-                callback();
+                if (callback) {
+                    callback();
+                }
+
+            } else {
+                alert(_httpRequestFailMsg);
             }
         }
     };
@@ -541,6 +548,9 @@ function populateStops(callback?: Function) {
     return;
 }
 
+/**
+ * Sets all the HTML Elements in _data.
+ */
 function populateDOMElementVariables() {
 
     _data.Route.element = document.getElementById("Route") as HTMLInputElement;
@@ -563,6 +573,9 @@ function populateDOMElementVariables() {
     return;
 }
 
+/**
+ * Adds listeners to the 'change' events of the input fields and the 'click' event of the button.
+ */
 function setUpInputBindings() {
 
     _data.Route.element.addEventListener("change", _data.Route.changeEventHandler);
@@ -576,6 +589,9 @@ function setUpInputBindings() {
     return;
 }
 
+/**
+ * Enables all input fields and the enter button.
+ */
 function enableInputFields() {
 
     if (_data.Route.element && _data.Direction.element && _data.Stop.element) {
@@ -591,7 +607,11 @@ function enableInputFields() {
     return
 }
 
+/**
+ * Disables all the input fields and the enter button.
+ */
 function disableInputFields() {
+
     if (_data.Route.element && _data.Direction.element && _data.Stop.element) {
 
         _data.Route.element.setAttribute("disabled", "true");
@@ -605,6 +625,9 @@ function disableInputFields() {
     return;
 }
 
+/**
+ * initializes _data and the page for use.
+ */
 function init() {
     populateDOMElementVariables();
     setUpInputBindings();
