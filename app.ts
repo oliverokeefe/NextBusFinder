@@ -62,7 +62,7 @@ let _data: ControlDataObj = {
         code: "", parseCode: getDirectionCode, element: undefined, validationElement: undefined,
         helpMessage: "Enter the direction on the route (north, south, east, west)",
         changeEventHandler: function () {
-            let errorMsg: string = (_data.Route.code === "") ? "Enter a valid Route" : "Direction not found on Route";
+            let errorMsg: string = (_data.Route.code === "") ? "Enter a valid Route" : "Route Does not run that direction";
             validateAndSetCode("Direction", errorMsg);
             populateStops();
         }

@@ -15,7 +15,7 @@ var _data = {
         code: "", parseCode: getDirectionCode, element: undefined, validationElement: undefined,
         helpMessage: "Enter the direction on the route (north, south, east, west)",
         changeEventHandler: function () {
-            var errorMsg = (_data.Route.code === "") ? "Enter a valid Route" : "Direction not found on Route";
+            var errorMsg = (_data.Route.code === "") ? "Enter a valid Route" : "Route Does not run that direction";
             validateAndSetCode("Direction", errorMsg);
             populateStops();
         }
