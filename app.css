@@ -1,5 +1,8 @@
 ﻿body {
     font-family: 'Segoe UI', sans-serif;
+    color: #e6e6e6;
+    background-color: #262626;
+    padding-left: 5px;
 }
 
 
@@ -10,4 +13,41 @@
 
 .invalidInput {
     border-color:lightcoral;
+}
+
+.listContainer {
+    display:flex;
+    width:100%;
+}
+
+.border {
+    background-color: #1c1c1c;
+    border: 5px solid;
+    border-color: #171717;
+    padding: 5px;
+}
+
+.list {
+    margin-right: 10px;
+    height: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.output {
+    height: auto;
+    display: inline-block;
+}
+
+.placeholderText {
+    font-style:italic;
+    color: #8c8c8c;
+}
+
+.hide{
+    display: none;
+}
+
+.entryField {
+    min-width: 300px;
 }

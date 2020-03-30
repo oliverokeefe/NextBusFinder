@@ -1,132 +1,172 @@
 ;
-var _controls = {
+/**
+ * The data model for the controls.
+ */
+var _data = {
     Route: {
         code: "", parseCode: getRouteCode, element: undefined, validationElement: undefined,
+        helpMessage: "Enter the name of a route from below (or part of the name)",
         changeEventHandler: function () {
-            validateAndSetCode("Route", "Route Not Found", populateDirections);
+            validateAndSetCode("Route", "Route Not Found");
+            populateDirections(populateStops);
         }
     },
     Direction: {
         code: "", parseCode: getDirectionCode, element: undefined, validationElement: undefined,
+        helpMessage: "Enter the direction on the route (north, south, east, west)",
         changeEventHandler: function () {
-            var errorMsg = (_controls.Route.code === "") ? "Enter a valid Route" : "Direction not found on Route";
-            validateAndSetCode("Direction", errorMsg, populateStops);
+            var errorMsg = (_data.Route.code === "") ? "Enter a valid Route" : "Direction not found on Route";
+            validateAndSetCode("Direction", errorMsg);
+            populateStops();
         }
     },
     Stop: {
         code: "", parseCode: getStopCode, element: undefined, validationElement: undefined,
+        helpMessage: "Enter the stop on the route",
         changeEventHandler: function () {
-            var errorMsg = (_controls.Route.code === "" || _controls.Direction.code === "") ? "Enter a valid Route and Direction" : "Stop Not Found on Route in Direction";
+            var errorMsg = (_data.Route.code === "" || _data.Direction.code === "") ? "Enter a valid Route and Direction" : "Stop Not Found on Route in Direction";
             validateAndSetCode("Stop", errorMsg);
         }
     },
     Enter: {
         element: undefined, validationElement: undefined,
+        helpMessage: "",
         clickEventHandler: function () {
             findNextBus();
         }
     }
 };
 /**
- * Array of all routes name and associated route code
+ * Array of all routes name and associated route code. The names are stored in all lower case for searches.
+ * If this is empty, there was an error during init()
  */
 var _routes = [];
+/**
+ * Array of all the directions associated with the input route. Only populated if a valid route has been entered. Stores the direction names corresponding codes.
+ * This is empyt of the entered route is invalid.
+ */
 var _directions = [];
 /**
- * Array of stops along the input route in the input direction. Populated after
- * the direction is verified with the route. Empty if the route, direction, or
- * the pair of them are invalid/empty. Also empty if the _stopsElement is invalid/empty.
+ * Array of stops along the entered route in the entered direction. Only populated if a valid route and valid direction have are entered.
+ * Empty there is not BOTH a valid route and valid direction.
  */
 var _stops = [];
 /**
- * The timepoint departures retrived using the provided Route Direction and Stop.
- * This will be an array of key-value pair objects. Most importatnly the 'Acutal'
- * and 'DepartureText' values
+ * Array of the timepoint Departures on the entered route, in the entered direction, from the entered stop. Only populated if after pressing the "Find Next Bus" button
+ * with all fields having valid input. Used to find the time until the next bus arrives.
  */
 var _timepointDepartures = [];
-var _outputMainDiv;
-var _outputSecondDiv;
 /**
- * Base url for all GET requests.
+ * The div element used to display the list of all routes available to the user.
+ */
+var _routeListElement;
+/**
+ * The div element used to display the list of all valid stops on the entered route in the entered direction.
+ * Only displayed if the _stops array is populated.
+ */
+var _stopListElement;
+/**
+ * The div used to display the time until the bus arrives (or the message that there will be no bus).
+ */
+var _outputMainDiv;
+/**
+ * Base url of all GET requests for the Metro Transit API.
  */
 var _url = "https://svc.metrotransit.org/NexTrip";
+/*
+ * The paths for the different API calls
+ */
 var _getRoutes = "/Routes";
 var _getDirections = "/Directions/"; // {ROUTE}
 var _getStops = "/Stops/"; //{ROUTE}/{DIRECTION}
 var _getTimepointDepartures = "/"; //{ROUTE}/{DIRECTION}/{STOP}
-function validateAndSetCode(control, errorMsg, codeValidCallback) {
-    var code = _controls[control].parseCode();
-    if (_controls[control].element.value != "" && code === "") {
-        _controls[control].code = "";
+/**
+ * Validates the input to the 'control' control and sets the code if valid. If the input is invalid this will mark the control as invalid and display
+ * an error message.
+ * @param control The control to validate and set.
+ * @param errorMsg The message to display if the input is invalid.
+ */
+function validateAndSetCode(control, errorMsg) {
+    _data[control].code = _data[control].parseCode();
+    if (_data[control].element.value != "" && _data[control].code === "") {
         setValidation(control, errorMsg);
     }
     else {
-        _controls[control].code = code;
-        setValidation(control, "");
-        if (codeValidCallback) {
-            codeValidCallback();
-        }
+        setValidation(control);
     }
-    if (_controls.Route.code != "" && _controls.Direction.code != "" && _controls.Stop.code != "") {
-        setValidation("Enter", "");
+    if (_data.Route.code != "" && _data.Direction.code != "" && _data.Stop.code != "") {
+        setValidation("Enter");
     }
-}
-function setValidation(control, message) {
-    _controls[control].validationElement.innerHTML = message;
-    if (message != "") {
-        _controls[control].element.classList.add("invalidInput");
-    }
-    else {
-        _controls[control].element.classList.remove("invalidInput");
-    }
-}
-/**
- * Checks if the _directionCode is valid for the _routeCode. Does not set either code, nor does this function compute them using the input.
- * Ensure the codes are set before calling this function.
- */
-function validateDirectionWithRoute() {
-    if (_controls.Route.code === "" || _controls.Direction.code === "") {
-        return;
-    }
-    var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange = function () {
-        if (this.readyState === XMLHttpRequest.DONE && (this.status === 0 || (this.status >= 200 && this.status < 300))) {
-            var directions = JSON.parse(this.response);
-            var isValid_1 = false;
-            directions.forEach(function (direction) {
-                if (direction.Value === _controls.Direction.code) {
-                    isValid_1 = true;
-                }
-            });
-            if (!isValid_1) {
-                _controls.Direction.code = "";
-                setValidation("Direction", "Direction not valid for Route");
-            }
-            else {
-                setValidation("Direction", "");
-                populateStops();
-            }
-        }
-    };
-    xhttp.open("GET", _url + _getDirections + _controls.Route.code);
-    xhttp.setRequestHeader("Accept", "application/json");
-    xhttp.send();
     return;
 }
+/**
+ * If given a message, marks the control as invalid and displays the error message. Otherwise it clears validation error markings/messages
+ * and displays the controls default help message instead.
+ * @param control The control to set validation on.
+ * @param message The error message to display
+ */
+function setValidation(control, message) {
+    if (message) {
+        _data[control].validationElement.innerHTML = message;
+        _data[control].validationElement.classList.add("validation");
+        _data[control].element.classList.add("invalidInput");
+    }
+    else {
+        _data[control].validationElement.innerHTML = _data[control].helpMessage;
+        _data[control].validationElement.classList.remove("validation");
+        _data[control].element.classList.remove("invalidInput");
+    }
+    return;
+}
+/**
+ * Clears any input of the controls and displays their help messages. This does use validateAndSetCode to clear the control's data as well.
+ * The controls will be disabled while the data is clearing, and enabled when the data is cleared.
+ */
+function clearInputAndDisplayHelp() {
+    disableInputFields();
+    _data.Route.element.value = "";
+    _data.Direction.element.value = "";
+    _data.Stop.element.value = "";
+    validateAndSetCode("Route", "");
+    validateAndSetCode("Direction", "");
+    validateAndSetCode("Stop", "");
+    enableInputFields();
+    return;
+}
+/**
+ * Finds the and displays the time until the next bus. This runs when the button is pressed with valid input in all fields (route, direction, and stop).
+ */
 function findNextBus() {
-    //Race condition where if you have valid input then change and input, this could fire using the valid previous input.
-    if (_controls.Route.code === "" || _controls.Direction.code === "" || _controls.Stop.code === "") {
+    if (_data.Route.code === "" || _data.Direction.code === "" || _data.Stop.code === "") {
         setValidation("Enter", "Fix errors before finding next bus");
         return;
     }
-    populateTimepointDeparture();
+    var callback = function () {
+        setLoadingMessage();
+        displayResponse();
+        enableInputFields();
+    };
+    disableInputFields();
+    setLoadingMessage("loading...");
+    populateTimepointDeparture(callback);
+    return;
+}
+function setLoadingMessage(message) {
+    if (message) {
+        _data.Enter.validationElement.classList.add("placeholderText");
+        _data.Enter.validationElement.innerHTML = message;
+    }
+    else {
+        _data.Enter.validationElement.innerHTML = "";
+        _data.Enter.validationElement.classList.remove("placeholderText");
+    }
 }
 /**
  * Retrieves the code corresponding to the route name. "" if the route does not exist.
  * @returns The code for the route, or "" of no route exists
  */
 function getRouteCode() {
-    var targetRoute = _controls.Route.element.value.toLowerCase();
+    var targetRoute = _data.Route.element.value.toLowerCase();
     var routeCode = "";
     var possibleRoutes = [];
     _routes.forEach(function (route) {
@@ -145,7 +185,7 @@ function getRouteCode() {
  */
 function getDirectionCode() {
     var targetDirection = "";
-    switch (_controls.Direction.element.value.toLowerCase()) {
+    switch (_data.Direction.element.value.toLowerCase()) {
         case "south":
             targetDirection = "1";
             break;
@@ -174,7 +214,7 @@ function getDirectionCode() {
  * @returns The code for the stop, or "" of no stop exists
  */
 function getStopCode() {
-    var targetStop = _controls.Stop.element.value.toLowerCase();
+    var targetStop = _data.Stop.element.value.toLowerCase();
     var stopCode = "";
     var possibleStops = [];
     _stops.forEach(function (stp) {
@@ -190,7 +230,7 @@ function getStopCode() {
 function getRouteName() {
     var routeName = "";
     _routes.forEach(function (route) {
-        if (_controls.Route.code === route.Route) {
+        if (_data.Route.code === route.Route) {
             routeName = route.Description;
         }
     });
@@ -199,7 +239,7 @@ function getRouteName() {
 function getDirectionName() {
     var directionName = "";
     _directions.forEach(function (direction) {
-        if (_controls.Direction.code === direction.Value) {
+        if (_data.Direction.code === direction.Value) {
             directionName = direction.Text;
         }
     });
@@ -208,7 +248,7 @@ function getDirectionName() {
 function getStopName() {
     var stopName = "";
     _stops.forEach(function (stp) {
-        if (_controls.Stop.code === stp.Value) {
+        if (_data.Stop.code === stp.Value) {
             stopName = stp.Text;
         }
     });
@@ -216,7 +256,6 @@ function getStopName() {
 }
 function displayResponse() {
     var outputMain = "";
-    var outputSecond = "";
     //Should check if Actual and DepartureText have values.
     if (_timepointDepartures && _timepointDepartures.length > 0) {
         var timeUntilArrival = "";
@@ -234,46 +273,76 @@ function displayResponse() {
             timeUntilArrival = new Date(busDateTime.getTime() - today.getTime()).getMinutes();
         }
         outputMain = timeUntilArrival + " minutes";
-        outputSecond = "The next " + getDirectionName() + " bus on route " + getRouteName() + " will arrive at " + getStopName() + " in " + timeUntilArrival + " minutes";
     }
     else {
         outputMain = "The last bus has left for the day";
     }
+    _outputMainDiv.classList.remove("placeholderText");
     _outputMainDiv.innerHTML = outputMain;
-    _outputSecondDiv.innerHTML = outputSecond;
     return;
+}
+function clearList(list) {
+    switch (list) {
+        case "Route":
+            _directions = [];
+            _stops = [];
+            break;
+        case "Direction":
+            _stops = [];
+            break;
+        case "Stop":
+            break;
+        default:
+            break;
+    }
 }
 /**
  * Sends the Request using Route, Direction, and Stop
  */
-function populateTimepointDeparture() {
-    if (_controls.Route.code === "" || _controls.Direction.code === "" || _controls.Stop.code === "") {
+function populateTimepointDeparture(callback) {
+    if (_data.Route.code === "" || _data.Direction.code === "" || _data.Stop.code === "") {
         return;
     }
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function () {
         if (this.readyState === XMLHttpRequest.DONE && (this.status === 0 || (this.status >= 200 && this.status < 300))) {
             _timepointDepartures = JSON.parse(this.response);
-            displayResponse();
+            if (callback) {
+                callback();
+            }
         }
     };
-    xhttp.open("GET", _url + _getTimepointDepartures + _controls.Route.code + "/" + _controls.Direction.code + "/" + _controls.Stop.code);
+    xhttp.open("GET", _url + _getTimepointDepartures + _data.Route.code + "/" + _data.Direction.code + "/" + _data.Stop.code);
     xhttp.setRequestHeader("Accept", "application/json");
     xhttp.send();
     return;
 }
+function testtest() {
+    _routeListElement.innerHTML = "";
+}
 /**
  * Populate a table with Route names and codes
  */
-function populateRoutes() {
+function populateRoutes(callback) {
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function () {
         if (this.readyState === XMLHttpRequest.DONE && (this.status === 0 || (this.status >= 200 && this.status < 300))) {
             _routes = JSON.parse(this.response);
+            _routeListElement.classList.add("hide");
+            _routeListElement.innerHTML = "";
+            //let routeHeader: HTMLHeadingElement = document.createElement("h2");
+            //routeHeader.innerText = "Routes:";
+            //_routeListElement.appendChild(routeHeader);
             _routes.forEach(function (route) {
+                var routeName = document.createElement("div");
+                routeName.innerHTML = route.Description;
+                _routeListElement.appendChild(routeName);
                 route.Description = route.Description.toLowerCase();
             });
-            enableInputFields();
+            _routeListElement.classList.remove("hide");
+            if (callback) {
+                callback();
+            }
         }
     };
     xhttp.open("GET", _url + _getRoutes);
@@ -282,81 +351,116 @@ function populateRoutes() {
     return;
 }
 function populateDirections(callback) {
-    if (_controls.Route.code === "") {
+    if (_data.Route.code === "") {
+        _directions = [];
         return;
     }
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function () {
         if (this.readyState === XMLHttpRequest.DONE && (this.status === 0 || (this.status >= 200 && this.status < 300))) {
             _directions = JSON.parse(this.response);
-            if (_controls.Direction.element.value != "") {
+            if (_data.Direction.element.value != "") {
                 validateAndSetCode("Direction", "Direction Not Found on Route");
             }
-            populateStops();
+            if (callback) {
+                callback();
+            }
         }
     };
-    xhttp.open("GET", _url + _getDirections + _controls.Route.code);
+    xhttp.open("GET", _url + _getDirections + _data.Route.code);
     xhttp.setRequestHeader("Accept", "application/json");
     xhttp.send();
     return;
 }
-function populateStops() {
-    if (_controls.Route.code === "" || _controls.Direction.code === "") {
+function populateStops(callback) {
+    if (_data.Route.code === "" || _data.Direction.code === "") {
+        _stops = [];
+        _stopListElement.classList.add("placeholderText");
+        _stopListElement.innerHTML = "Stops will be listed once Route and Direction are entered";
         return;
     }
     var xhttp = new XMLHttpRequest();
     xhttp.onreadystatechange = function () {
         if (this.readyState === XMLHttpRequest.DONE && (this.status === 0 || (this.status >= 200 && this.status < 300))) {
             _stops = JSON.parse(this.response);
+            _stopListElement.classList.add("hide");
+            _stopListElement.classList.remove("placeholderText");
+            _stopListElement.innerHTML = "";
             _stops.forEach(function (stp) {
+                var stopName = document.createElement("div");
+                stopName.innerHTML = stp.Text;
+                _stopListElement.appendChild(stopName);
                 stp.Text = stp.Text.toLowerCase();
             });
-            if (_controls.Stop.element.value != "") {
+            _stopListElement.classList.remove("hide");
+            if (_data.Stop.element.value != "") {
                 validateAndSetCode("Stop", "Stop Not Found on Route in Direction");
+            }
+            if (callback) {
+                callback();
             }
         }
     };
-    xhttp.open("GET", _url + _getStops + _controls.Route.code + "/" + _controls.Direction.code);
+    xhttp.open("GET", _url + _getStops + _data.Route.code + "/" + _data.Direction.code);
     xhttp.setRequestHeader("Accept", "application/json");
     xhttp.send();
     return;
 }
 function populateDOMElementVariables() {
-    _controls.Route.element = document.getElementById("Route");
-    _controls.Route.validationElement = document.getElementById("RouteValidation");
-    _controls.Direction.element = document.getElementById("Direction");
-    _controls.Direction.validationElement = document.getElementById("DirectionValidation");
-    _controls.Stop.element = document.getElementById("Stop");
-    _controls.Stop.validationElement = document.getElementById("StopValidation");
-    _controls.Enter.element = document.getElementById("EnterBtn");
-    _controls.Enter.validationElement = document.getElementById("EnterValidation");
+    _data.Route.element = document.getElementById("Route");
+    _data.Route.validationElement = document.getElementById("RouteValidation");
+    _data.Direction.element = document.getElementById("Direction");
+    _data.Direction.validationElement = document.getElementById("DirectionValidation");
+    _data.Stop.element = document.getElementById("Stop");
+    _data.Stop.validationElement = document.getElementById("StopValidation");
+    _data.Enter.element = document.getElementById("EnterBtn");
+    _data.Enter.validationElement = document.getElementById("EnterValidation");
     _outputMainDiv = document.getElementById("OutputMain");
-    _outputSecondDiv = document.getElementById("OutputSecond");
-    setUpInputBindings();
+    _routeListElement = document.getElementById("RouteList");
+    _stopListElement = document.getElementById("StopList");
+    return;
 }
 function setUpInputBindings() {
-    _controls.Route.element.addEventListener("change", _controls.Route.changeEventHandler);
-    _controls.Direction.element.addEventListener("change", _controls.Direction.changeEventHandler);
-    _controls.Stop.element.addEventListener("change", _controls.Stop.changeEventHandler);
-    _controls.Enter.element.addEventListener("click", _controls.Enter.clickEventHandler);
-    enableInputFields();
+    _data.Route.element.addEventListener("change", _data.Route.changeEventHandler);
+    _data.Direction.element.addEventListener("change", _data.Direction.changeEventHandler);
+    _data.Stop.element.addEventListener("change", _data.Stop.changeEventHandler);
+    _data.Enter.element.addEventListener("click", _data.Enter.clickEventHandler);
+    return;
 }
 function enableInputFields() {
-    if (_routes.length > 0 && _controls.Route.element && _controls.Direction.element && _controls.Stop.element) {
-        _controls.Route.element.removeAttribute("disabled");
-        _controls.Direction.element.removeAttribute("disabled");
-        _controls.Stop.element.removeAttribute("disabled");
-        _controls.Enter.element.removeAttribute("disabled");
-        _controls.Route.element.focus();
+    if (_data.Route.element && _data.Direction.element && _data.Stop.element) {
+        _data.Route.element.removeAttribute("disabled");
+        _data.Direction.element.removeAttribute("disabled");
+        _data.Stop.element.removeAttribute("disabled");
+        _data.Enter.element.removeAttribute("disabled");
+        _data.Route.element.focus();
     }
-    else {
+    return;
+}
+function disableInputFields() {
+    if (_data.Route.element && _data.Direction.element && _data.Stop.element) {
+        _data.Route.element.setAttribute("disabled", "true");
+        _data.Direction.element.setAttribute("disabled", "true");
+        _data.Stop.element.setAttribute("disabled", "true");
+        _data.Enter.element.setAttribute("disabled", "true");
+        _data.Route.element.focus();
     }
+    return;
 }
 function init() {
-    populateRoutes();
     populateDOMElementVariables();
+    setUpInputBindings();
+    var callback = function () {
+        clearInputAndDisplayHelp();
+        setLoadingMessage();
+        return;
+    };
+    setLoadingMessage("Loading...");
+    populateRoutes(callback);
+    return;
 }
 window.onload = function () {
     init();
+    return;
 };
 //# sourceMappingURL=app.js.map
