@@ -1,5 +1,5 @@
-# targetCaseStudy
-API Consumption Case Study for target technical interview
+# NextBusFinder
+API Consumption Case Study for technical interview
 
 Instuctions:
 -Go to https://oliverokeefe.github.io/NextBusFinder/.
