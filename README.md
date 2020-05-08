@@ -2,7 +2,7 @@
 API Consumption Case Study for target technical interview
 
 Instuctions:
--Go to https://oliverokeefe.github.io/targetCaseStudy/.
+-Go to https://oliverokeefe.github.io/NextBusFinder/.
 -Enter a route in the Route field.
 -Enter a direction in the Direction field.
 -Enter a stop in the Stop field.
